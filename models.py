@@ -1,11 +1,22 @@
 from sqlalchemy import create_engine, Column, Integer, String, Date, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import scoped_session, sessionmaker
 
+__all__ = ['Session', 'User', 'Book', 'Shop', 'Order', 'OrderItem']
 
 DB_URI = 'sqlite:///sample.db'
 
 engine = create_engine(DB_URI)
 Base = declarative_base()
+session_factory = sessionmaker(bind=engine)
+Session = scoped_session(session_factory)
+
+
+def class_attrs_to_dict(in_object, attrs):
+    attrs_dict = {}
+    for attr in attrs:
+        attrs_dict[attr] = getattr(in_object, attr)
+    return attrs_dict
 
 
 class User(Base):
@@ -20,6 +31,10 @@ class User(Base):
     def __repr__(self):
         return f'{self.name} {self.surname}'
 
+    def as_dict(self):
+        fields = ['id', 'name', 'surname', 'fathers_name', 'email']
+        return class_attrs_to_dict(self, fields)
+
 
 class Book(Base):
     __tablename__ = 'books'
@@ -31,6 +46,10 @@ class Book(Base):
 
     def __repr__(self):
         return f'{self.name} ({self.author})'
+
+    def as_dict(self):
+        fields = ['id', 'name', 'author', 'isbn']
+        return class_attrs_to_dict(self, fields)
 
 
 class Shop(Base):
@@ -44,6 +63,10 @@ class Shop(Base):
     def __repr__(self):
         return f'{self.name} ({self.address})'
 
+    def as_dict(self):
+        fields = ['id', 'name', 'address', 'post_code']
+        return class_attrs_to_dict(self, fields)
+
 
 class Order(Base):
     __tablename__ = 'orders'
@@ -54,6 +77,10 @@ class Order(Base):
 
     def __repr__(self):
         return f'Order {self.id}'
+
+    def as_dict(self):
+        fields = ['id', 'reg_date']
+        return class_attrs_to_dict(self, fields)
 
 
 class OrderItem(Base):
