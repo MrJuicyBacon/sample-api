@@ -1,7 +1,13 @@
 import json
+from datetime import date
 from aiohttp.web import Response, HTTPNotFound
 from models import Session as DbSession
 from models import User, Order, OrderItem, Shop, Book
+from sqlalchemy import func
+
+
+def create_response(status=200, body=None, content_type='application/json'):
+    return Response(status=status, body=json.dumps(body, separators=(',', ':')), content_type=content_type)
 
 
 async def users_get_handler(request):
@@ -12,7 +18,7 @@ async def users_get_handler(request):
         if user is None:
             raise HTTPNotFound
         user_dict = user.as_dict()
-        return Response(body=json.dumps(user_dict, separators=(',', ':')), content_type='application/json')
+        return create_response(200, user_dict)
     raise HTTPNotFound
 
 
@@ -57,4 +63,58 @@ async def users_orders_handler(request):
                 })
         orders.append(temp_obj)
 
-    return Response(body=json.dumps({'orders': orders}, separators=(',', ':')), content_type='application/json')
+    return create_response(200, {'orders': orders})
+
+
+async def order_handler(request):
+    if request.body_exists:
+        data = await request.post()
+        try:
+            user_id = int(data.get('user_id'))
+            if user_id < 1:
+                raise ValueError
+        except (ValueError, TypeError):
+            return create_response(400, {'error': '"user_id" parameter is in the wrong format.'})
+
+        books = data.get('books')
+        if books is None:
+            return create_response(400, {'error': '"user_id", "shop_id" and "books" are required.'})
+
+        session = DbSession
+        try:
+            books_json = json.loads(books)
+
+            shop_ids = set([int(book['shop_id']) for book in books_json])
+            count = session.query(Shop).with_entities(func.count()).filter(Shop.id.in_(shop_ids)).scalar()
+            if len(shop_ids) != count:
+                return create_response(400, {'error': 'Unable to identify all of the shops.'})
+
+            books_dict = {}
+            for book in books_json:
+                quantity = int(book['quantity'])
+                if quantity < 1:
+                    return create_response(400, {'error': '"quantity" can\'t be less than one.'})
+                shop_book_str = f"{book['shop_id']}:{book['id']}"
+                if shop_book_str not in books_dict:
+                    books_dict[shop_book_str] = quantity
+                else:
+                    books_dict[shop_book_str] += quantity
+        except (json.decoder.JSONDecodeError, KeyError, ValueError):
+            return create_response(400, {'error': '"books" parameter is in the wrong format.'})
+
+        order = Order(reg_date=date.today(), user_id=user_id)
+        session.add(order)
+        session.flush()
+
+        order_items = []
+        for shop_book_id, book_quantity in books_dict.items():
+            shop_id, book_id = shop_book_id.split(':')
+            order_items.append(
+                OrderItem(order_id=order.id, book_id=book_id, shop_id=shop_id, book_quantity=book_quantity)
+            )
+        session.add_all(order_items)
+
+        session.commit()
+        return create_response(201, {'success': True})
+
+    return create_response(500, {'error': 'Some error occurred.'})
