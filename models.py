@@ -89,6 +89,7 @@ class OrderItem(Base):
     id = Column(Integer, primary_key=True)
     order_id = Column(ForeignKey('orders.id'), nullable=False)
     book_id = Column(ForeignKey('books.id'), nullable=False)
+    book_quantity = Column(Integer, nullable=False)
     shop_id = Column(ForeignKey('shops.id'), nullable=False)
 
     def __repr__(self):

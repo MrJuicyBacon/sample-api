@@ -24,14 +24,14 @@ async def users_orders_handler(request):
     order_ids = [order_id for order_id, _ in order_objects]
 
     order_item_objects = session.query(OrderItem)\
-        .with_entities(OrderItem.order_id, OrderItem.book_id, OrderItem.shop_id)\
+        .with_entities(OrderItem.order_id, OrderItem.book_id, OrderItem.shop_id, OrderItem.book_quantity)\
         .filter(OrderItem.order_id.in_(order_ids))
     book_ids = set()
     shop_ids = set()
 
-    for _, book_id, shop_id in order_item_objects:
-        book_ids.add(book_id)
-        shop_ids.add(shop_id)
+    for order_item_object in order_item_objects:
+        book_ids.add(order_item_object.book_id)
+        shop_ids.add(order_item_object.shop_id)
 
     book_objects = session.query(Book).filter(Book.id.in_(book_ids))
     shop_objects = session.query(Shop).filter(Shop.id.in_(shop_ids))
@@ -42,27 +42,18 @@ async def users_orders_handler(request):
     for shop_object in shop_objects:
         shops[shop_object.id] = shop_object
 
-    order_items_count = {}
-    order_items = []
-    for order_item in order_item_objects:
-        if f'{order_item.order_id}:{order_item.shop_id}:{order_item.book_id}' not in order_items_count:
-            order_items.append(order_item)
-            order_items_count[f'{order_item.order_id}:{order_item.shop_id}:{order_item.book_id}'] = 1
-        else:
-            order_items_count[f'{order_item.order_id}:{order_item.shop_id}:{order_item.book_id}'] += 1
-
     orders = []
     for order in order_objects:
         temp_obj = {
             'date': order.reg_date.strftime('%Y-%m-%d'),
             'items': []
         }
-        for order_item in order_items:
+        for order_item in order_item_objects:
             if order_item.order_id == order.id:
                 temp_obj['items'].append({
                     'book': books[order_item.book_id].as_dict(),
                     'shop': shops[order_item.shop_id].as_dict(),
-                    'quantity': order_items_count[f'{order_item.order_id}:{order_item.shop_id}:{order_item.book_id}'],
+                    'quantity': order_item.book_quantity,
                 })
         orders.append(temp_obj)
 
