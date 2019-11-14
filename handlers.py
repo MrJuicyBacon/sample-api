@@ -7,6 +7,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 
+# Main handler class
 class SampleHandler:
 
     def __init__(self, *args, **kwargs):
@@ -17,6 +18,7 @@ class SampleHandler:
     def _create_response(status=200, body=None, content_type='application/json'):
         return Response(status=status, body=json.dumps(body, separators=(',', ':')), content_type=content_type)
 
+    # Method for getting object from model by id
     @staticmethod
     def _get_objects_from_ids(model_class, ids):
         session = DbSession
@@ -33,6 +35,7 @@ class SampleHandler:
         pass
 
 
+# Handler for getting user data from db
 class UsersGetHandler(SampleHandler):
     async def _handler_function(self, request):
         user_id = request.match_info.get('user_id')
@@ -46,6 +49,7 @@ class UsersGetHandler(SampleHandler):
         raise HTTPNotFound
 
 
+# Handler for getting orders data for specific user from db
 class UsersOrdersHandler(SampleHandler):
     def __init__(self, books_as_id=True, shops_as_id=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -56,9 +60,11 @@ class UsersOrdersHandler(SampleHandler):
         session = DbSession
         user_id = request.match_info.get('user_id')
 
+        # Querying orders for selected user and storing their ids
         order_objects = session.query(Order).with_entities(Order.id, Order.reg_date).filter(Order.user_id == user_id)
         order_ids = [order_id for order_id, _ in order_objects]
 
+        # Querying order items for selected orders and storing books and shop ids from them if needed
         order_item_objects = session.query(OrderItem)\
             .with_entities(OrderItem.order_id, OrderItem.book_id, OrderItem.shop_id, OrderItem.book_quantity)\
             .filter(OrderItem.order_id.in_(order_ids))
@@ -70,9 +76,11 @@ class UsersOrdersHandler(SampleHandler):
                 book_ids.add(order_item_object.book_id)
                 shop_ids.add(order_item_object.shop_id)
 
+        # Getting books and shops dicts from stored ids if needed
         books = self._get_objects_from_ids(Book, book_ids) if not self.books_as_id and len(book_ids) else None
         shops = self._get_objects_from_ids(Shop, shop_ids) if not self.shops_as_id and len(shop_ids) else None
 
+        # Filling final orders values from previously obtained data
         orders = []
         for order in order_objects:
             temp_obj = {
@@ -83,6 +91,7 @@ class UsersOrdersHandler(SampleHandler):
                 if order_item.order_id == order.id:
                     temp_book = {}
 
+                    # Filling each order depending on the parameters
                     if self.books_as_id or books is None:
                         temp_book['book_id'] = order_item.book_id
                     else:
@@ -99,9 +108,11 @@ class UsersOrdersHandler(SampleHandler):
         return self._create_response(200, {'orders': orders})
 
 
+# Handler for ordering
 class OrderHandler(SampleHandler):
     async def _handler_function(self, request):
         if request.body_exists:
+            # Checking possible user_id and shop_id errors and responding accordingly
             data = await request.post()
             if len(data) == 0:
                 try:
@@ -115,19 +126,22 @@ class OrderHandler(SampleHandler):
             except (ValueError, TypeError):
                 return self._create_response(400, {'error': '"user_id" parameter is in the wrong format.'})
 
+            # Checking possible books errors and responding accordingly
             books = data.get('books')
             if books is None:
-                return self._create_response(400, {'error': '"user_id", "shop_id" and "books" are required.'})
+                return self._create_response(400, {'error': '"books" field is required.'})
 
             session = DbSession
             try:
                 books_json = json.loads(books)
 
+                # Checking if all shops from the request are present
                 shop_ids = set([int(book['shop_id']) for book in books_json])
                 count = session.query(Shop).with_entities(func.count()).filter(Shop.id.in_(shop_ids)).scalar()
                 if len(shop_ids) != count:
                     return self._create_response(400, {'error': 'Unable to identify all of the shops.'})
 
+                # Creating books_dict that contains shop and book ids as keys and quantity as values
                 books_dict = {}
                 for book in books_json:
                     quantity = int(book['quantity'])
@@ -141,6 +155,7 @@ class OrderHandler(SampleHandler):
             except (json.decoder.JSONDecodeError, KeyError, ValueError):
                 return self._create_response(400, {'error': '"books" parameter is in the wrong format.'})
 
+            # Creating new order object
             order = Order(reg_date=date.today(), user_id=user_id)
             session.add(order)
             try:
@@ -148,6 +163,7 @@ class OrderHandler(SampleHandler):
             except IntegrityError:
                 return self._create_response(400, {'error': 'Some error occurred.'})
 
+            # Creating order items objects for previously created order
             order_items = []
             for shop_book_id, book_quantity in books_dict.items():
                 shop_id, book_id = shop_book_id.split(':')
@@ -156,6 +172,7 @@ class OrderHandler(SampleHandler):
                 )
             session.add_all(order_items)
 
+            # Committing all changes to the db
             try:
                 session.commit()
                 return self._create_response(201, {'success': True})
