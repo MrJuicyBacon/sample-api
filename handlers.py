@@ -2,8 +2,7 @@ import json
 from datetime import date
 from aiohttp.web import Response, HTTPNotFound
 from models import Session as DbSession
-from models import User, Order, OrderItem, Shop, Book
-from sqlalchemy import func
+from models import User, Order, OrderItem, Shop, Book, shop_book_association_table
 from sqlalchemy.exc import IntegrityError
 
 
@@ -136,14 +135,26 @@ class OrderHandler(SampleHandler):
                 books_json = json.loads(books)
 
                 # Checking if all shops from the request are present
+                # and creating book_ids dict with shop ids as keys and available books as values
                 shop_ids = set([int(book['shop_id']) for book in books_json])
-                count = session.query(Shop).with_entities(func.count()).filter(Shop.id.in_(shop_ids)).scalar()
-                if len(shop_ids) != count:
+                shops = session.query(shop_book_association_table).filter(
+                    shop_book_association_table.c.shop_id.in_(shop_ids)
+                )
+                book_ids = {}
+                for shop_id, book_id in shops:
+                    if shop_id in book_ids:
+                        book_ids[shop_id].append(book_id)
+                    else:
+                        book_ids[shop_id] = [book_id]
+                if len(shop_ids) != len(book_ids):
                     return self._create_response(400, {'error': 'Unable to identify all of the shops.'})
 
                 # Creating books_dict that contains shop and book ids as keys and quantity as values
                 books_dict = {}
                 for book in books_json:
+                    if book['id'] not in book_ids[book['shop_id']]:
+                        return self._create_response(400, {'error': f'Book with id={book["id"]} is not available '
+                                                                    f'at the store with id={book["shop_id"]}.'})
                     quantity = int(book['quantity'])
                     if quantity < 1:
                         return self._create_response(400, {'error': '"quantity" can\'t be less than one.'})

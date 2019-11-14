@@ -3,7 +3,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Date, ForeignKey,
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker, relationship
 
-__all__ = ['Session', 'User', 'Book', 'Shop', 'Order', 'OrderItem']
+__all__ = ['Session', 'User', 'Book', 'Shop', 'Order', 'OrderItem', 'shop_book_association_table']
 
 DB_URI = 'sqlite:///sample.db'
 
@@ -165,7 +165,7 @@ if __name__ == '__main__':
             name=shop[0],
             address=shop[1],
             post_code=shop[2],
-            books=random.sample(test_book_objects, random.randint(0, len(test_books)))
+            books=random.sample(test_book_objects, random.randint(1, len(test_books)))
         ) for shop in test_shops
     ]
     test_user_objects = [
