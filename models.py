@@ -1,4 +1,5 @@
-from sqlalchemy import create_engine, Column, Integer, String, Date, ForeignKey
+import sqlite3
+from sqlalchemy import create_engine, Column, Integer, String, Date, ForeignKey, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 
@@ -10,6 +11,13 @@ engine = create_engine(DB_URI)
 Base = declarative_base()
 session_factory = sessionmaker(bind=engine)
 Session = scoped_session(session_factory)
+
+
+# Enabling foreign keys constraints check for sqlite db
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_connection, _):
+    if isinstance(dbapi_connection, sqlite3.Connection):
+        dbapi_connection.execute("PRAGMA foreign_keys=ON")
 
 
 def class_attrs_to_dict(in_object, attrs):
