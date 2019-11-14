@@ -120,6 +120,7 @@ if __name__ == '__main__':
 
     # Creating test data
     import random
+    # noinspection SpellCheckingInspection
     test_books = (
         ('Don Quixote', 'Miguel de Cervantes Saavedra', '9780486821955'),
         ('Alices adventures in wonderland', 'Lewis Carroll', '9781786751041'),
@@ -141,6 +142,7 @@ if __name__ == '__main__':
             '312060246'
         ),
     )
+    # noinspection SpellCheckingInspection
     test_shops = (
         ('Powell\'s City of Books', '1005 W Burnside St, Portland, OR, United States', '97209'),
         ('Barnes & Noble', '33 E 17th St, New York, NY, United States', '10003'),
@@ -149,6 +151,7 @@ if __name__ == '__main__':
         ('Waterstones', '203-206 Piccadilly, St. James\'s, London, United Kingdom', 'W1J 9HD'),
         ('Strand Book Store', '828 Broadway, New York, NY, United States', '10003'),
     )
+    # noinspection SpellCheckingInspection
     test_users = (
         ('Anton', 'Lapshin', None, 'iambacon@ya.ru'),
         ('Russell', 'Slater', 'B.', 'RussellBSlater@rhyta.com'),

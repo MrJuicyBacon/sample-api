@@ -188,3 +188,27 @@ class OrderHandler(SampleHandler):
                 pass
 
         return self._create_response(500, {'error': 'Some error occurred.'})
+
+
+# Handler for getting shop data from db
+class ShopGetHandler(SampleHandler):
+    def __init__(self, books_as_ids=True, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._books_as_ids = books_as_ids
+
+    def _handler_function(self, request):
+        shop_id = request.match_info.get('shop_id')
+
+        shop = self.session.query(Shop).get(shop_id)
+        if shop is None:
+            raise HTTPNotFound
+
+        out = shop.as_dict()
+        if self._books_as_ids:
+            book_ids = [book.id for book in shop.books]
+            out['book_ids'] = book_ids
+        else:
+            books = [book.as_dict() for book in shop.books]
+            out['books'] = books
+
+        return self._create_response(200, out)
