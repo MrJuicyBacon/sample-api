@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import date
 from aiohttp.web import Response, HTTPNotFound
 from models import Session as DbSession
@@ -6,6 +7,8 @@ from models import User, Order, OrderItem, Shop, Book, shop_book_association_tab
 from sqlalchemy.exc import IntegrityError
 
 __all__ = ['UsersGetHandler', 'UsersOrdersHandler', 'OrderHandler', 'ShopGetHandler']
+
+logger = logging.getLogger('sample_api.handlers')
 
 
 # Main handler class
@@ -37,14 +40,19 @@ class SampleHandler:
 # Handler for getting user data from db
 class UsersGetHandler(SampleHandler):
     async def _handler_function(self, request):
+        remote_ip = request.transport.get_extra_info('peername')
         user_id = request.match_info.get('user_id')
 
         if user_id is not None:
             user = self.session.query(User).get(int(user_id))
             if user is None:
+                logger.info(f'Remote ip {remote_ip} requested user with id={user_id}. Failed. '
+                            f'There is no user with that id.')
                 raise HTTPNotFound
             user_dict = user.as_dict()
+            logger.info(f'Remote ip {remote_ip} successfully accessed user with id={user_id}.')
             return self._create_response(200, user_dict)
+        logger.info(f'Remote ip {remote_ip} requested user with id={user_id}. Failed. Some error occurred.')
         raise HTTPNotFound
 
 
@@ -57,6 +65,7 @@ class UsersOrdersHandler(SampleHandler):
 
     async def _handler_function(self, request):
         user_id = request.match_info.get('user_id')
+        remote_ip = request.transport.get_extra_info('peername')
 
         # Querying orders for selected user and storing their ids
         order_objects = self.session.query(Order).with_entities(Order.id, Order.reg_date)\
@@ -103,13 +112,14 @@ class UsersOrdersHandler(SampleHandler):
 
                     temp_obj['items'].append(temp_book)
             orders.append(temp_obj)
-
+        logger.info(f'Remote ip {remote_ip} requested orders for user with id={user_id}.')
         return self._create_response(200, {'orders': orders})
 
 
 # Handler for ordering
 class OrderHandler(SampleHandler):
     async def _handler_function(self, request):
+        remote_ip = request.transport.get_extra_info('peername')
         if request.body_exists:
             # Checking possible user_id and shop_id errors and responding accordingly
             data = await request.post()
@@ -117,17 +127,24 @@ class OrderHandler(SampleHandler):
                 try:
                     data = await request.json()
                 except json.decoder.JSONDecodeError:
+                    logger.info(f'Remote ip {remote_ip} tried to make an order with the following data:'
+                                f' "{await request.text()}". Failed. Some error occurred')
                     return self._create_response(422, {'error': 'Unable to process submitted data.'})
+
+            failed_log_string = f'Remote ip {remote_ip} tried to make an order with the following data: ' \
+                                f'"{dict(data)}". Failed. '
             try:
                 user_id = int(data.get('user_id'))
                 if user_id < 1:
                     raise ValueError
             except (ValueError, TypeError):
+                logger.info(failed_log_string + 'Some error in "user_id" field occurred.')
                 return self._create_response(400, {'error': '"user_id" parameter is in the wrong format.'})
 
             # Checking possible books errors and responding accordingly
             books = data.get('books')
             if books is None:
+                logger.info(failed_log_string + '"books" field wa not found.')
                 return self._create_response(400, {'error': '"books" field is required.'})
 
             try:
@@ -146,16 +163,20 @@ class OrderHandler(SampleHandler):
                     else:
                         book_ids[shop_id] = [book_id]
                 if len(shop_ids) != len(book_ids):
+                    logger.info(failed_log_string + 'Some (or all) of the shops could not be identified.')
                     return self._create_response(400, {'error': 'Unable to identify all of the shops.'})
 
                 # Creating books_dict that contains shop and book ids as keys and quantity as values
                 books_dict = {}
                 for book in books_json:
                     if book['id'] not in book_ids[book['shop_id']]:
+                        logger.info(failed_log_string + 'Book with id={book["id"]} is not available '
+                                                        'at the store with id={book["shop_id"]}.')
                         return self._create_response(400, {'error': f'Book with id={book["id"]} is not available '
                                                                     f'at the store with id={book["shop_id"]}.'})
                     quantity = int(book['quantity'])
                     if quantity < 1:
+                        logger.info(failed_log_string + f'Quantity for book with id={book["id"]} is less than one.')
                         return self._create_response(400, {'error': '"quantity" can\'t be less than one.'})
                     shop_book_str = f"{book['shop_id']}:{book['id']}"
                     if shop_book_str not in books_dict:
@@ -163,6 +184,7 @@ class OrderHandler(SampleHandler):
                     else:
                         books_dict[shop_book_str] += quantity
             except (json.decoder.JSONDecodeError, KeyError, ValueError):
+                logger.info(failed_log_string + f'Some error in "books" field occurred.')
                 return self._create_response(400, {'error': '"books" parameter is in the wrong format.'})
 
             # Creating new order object
@@ -171,6 +193,7 @@ class OrderHandler(SampleHandler):
             try:
                 self.session.flush()
             except IntegrityError:
+                logger.info(failed_log_string + f'Some error occurred while trying to create an order.')
                 return self._create_response(400, {'error': 'Some error occurred.'})
 
             # Creating order items objects for previously created order
@@ -185,10 +208,13 @@ class OrderHandler(SampleHandler):
             # Committing all changes to the db
             try:
                 self.session.commit()
+                logger.info(f'Remote ip {remote_ip} successfully made an order '
+                            f'with the following data: "{dict(data)}".')
                 return self._create_response(201, {'success': True})
             except IntegrityError:
                 pass
 
+        logger.info(f'Remote ip {remote_ip} tried to make an order. Some error occurred')
         return self._create_response(500, {'error': 'Some error occurred.'})
 
 
@@ -200,9 +226,12 @@ class ShopGetHandler(SampleHandler):
 
     def _handler_function(self, request):
         shop_id = request.match_info.get('shop_id')
+        remote_ip = request.transport.get_extra_info('peername')
 
         shop = self.session.query(Shop).get(shop_id)
         if shop is None:
+            logger.info(f'Remote ip {remote_ip} requested shop with id={shop_id}. Failed. '
+                        f'There is no shop with that id.')
             raise HTTPNotFound
 
         out = shop.as_dict()
@@ -213,4 +242,5 @@ class ShopGetHandler(SampleHandler):
             books = [book.as_dict() for book in shop.books]
             out['books'] = books
 
+        logger.info(f'Remote ip {remote_ip} successfully accessed shop with id={shop_id}.')
         return self._create_response(200, out)

@@ -1,5 +1,21 @@
+import logging
 from aiohttp.web import Application, run_app
 from handlers import UsersGetHandler, UsersOrdersHandler, OrderHandler, ShopGetHandler
+
+# Logger
+logger = logging.getLogger('sample_api')
+logger.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+# Console log handler
+ch = logging.StreamHandler()
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+
+# File log handler
+fh = logging.FileHandler('log.log')
+fh.setFormatter(formatter)
+logger.addHandler(fh)
 
 
 app = Application()
