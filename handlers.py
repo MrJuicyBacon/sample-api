@@ -5,6 +5,8 @@ from models import Session as DbSession
 from models import User, Order, OrderItem, Shop, Book, shop_book_association_table
 from sqlalchemy.exc import IntegrityError
 
+__all__ = ['UsersGetHandler', 'UsersOrdersHandler', 'OrderHandler', 'ShopGetHandler']
+
 
 # Main handler class
 class SampleHandler:
