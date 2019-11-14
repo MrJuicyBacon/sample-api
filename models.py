@@ -114,5 +114,63 @@ class OrderItem(Base):
 
 
 if __name__ == '__main__':
+    # Clearing all tables
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
+
+    # Creating test data
+    import random
+    test_books = (
+        ('Don Quixote', 'Miguel de Cervantes Saavedra', '9780486821955'),
+        ('Alices adventures in wonderland', 'Lewis Carroll', '9781786751041'),
+        (
+            'The annotated Huckleberry Finn : Adventures of Huckleberry Finn (Tom Sawyer\'s comrade)',
+            'Mark Twain',
+            '393020398'
+        ),
+        ('The adventures of Tom Sawyer', 'Mark Twain', '1402714602'),
+        ('Treasure Island', 'Robert Louis Stevenson', '684171600'),
+        ('Pride and prejudice', 'Jane Austen', '679601686'),
+        ('Wuthering Heights', 'Emily Brontë', '140434186'),
+        ('Jane Eyre', 'Charlotte Brontë', '679405828'),
+        ('Moby Dick', 'Herman Melville', '895773228'),
+        (
+            'The scarlet letter : complete, authoritative text with biographical background and critical history '
+            'plus essays from five contemporary critical perspectives with introductions and bibliographies',
+            'Nathaniel Hawthorne',
+            '312060246'
+        ),
+    )
+    test_shops = (
+        ('Powell\'s City of Books', '1005 W Burnside St, Portland, OR, United States', '97209'),
+        ('Barnes & Noble', '33 E 17th St, New York, NY, United States', '10003'),
+        ('Cook & Book', 'Place du Temps Libre 1, 1200 Woluwe-Saint-Lambert, Belgium', ''),
+        ('John K. King Used & Rare Books', '901 W Lafayette Blvd, Detroit, MI, United States', '48226'),
+        ('Waterstones', '203-206 Piccadilly, St. James\'s, London, United Kingdom', 'W1J 9HD'),
+        ('Strand Book Store', '828 Broadway, New York, NY, United States', '10003'),
+    )
+    test_users = (
+        ('Anton', 'Lapshin', None, 'iambacon@ya.ru'),
+        ('Russell', 'Slater', 'B.', 'RussellBSlater@rhyta.com'),
+        ('Robert', 'Willett', 'S.', 'RobertSWillett@rhyta.com'),
+        ('Claude', 'Davis', 'D.', 'ClaudeDDavis@teleworm.us'),
+        ('Francis', 'Gallo', 'M.', 'FrancisMGallo@rhyta.com'),
+        ('Everett', 'Carroll', 'E.', 'EverettECarroll@jourrapide.com'),
+    )
+
+    # Filling db with test data
+    test_book_objects = [Book(name=book[0], author=book[1], isbn=book[2]) for book in test_books]
+    test_shop_objects = [
+        Shop(
+            name=shop[0],
+            address=shop[1],
+            post_code=shop[2],
+            books=random.sample(test_book_objects, random.randint(0, len(test_books)))
+        ) for shop in test_shops
+    ]
+    test_user_objects = [
+        User(name=user[0], surname=user[1], fathers_name=user[2], email=user[3]) for user in test_users
+    ]
+
+    Session().add_all(test_book_objects + test_shop_objects + test_user_objects)
+    Session().commit()
