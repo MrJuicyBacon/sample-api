@@ -4,6 +4,7 @@ from aiohttp.web import Response, HTTPNotFound
 from models import Session as DbSession
 from models import User, Order, OrderItem, Shop, Book
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 
 
 class SampleHandler:
@@ -102,6 +103,11 @@ class OrderHandler(SampleHandler):
     async def _handler_function(self, request):
         if request.body_exists:
             data = await request.post()
+            if len(data) == 0:
+                try:
+                    data = await request.json()
+                except json.decoder.JSONDecodeError:
+                    return self._create_response(422, {'error': 'Unable to process submitted data.'})
             try:
                 user_id = int(data.get('user_id'))
                 if user_id < 1:
@@ -137,7 +143,10 @@ class OrderHandler(SampleHandler):
 
             order = Order(reg_date=date.today(), user_id=user_id)
             session.add(order)
-            session.flush()
+            try:
+                session.flush()
+            except IntegrityError:
+                return self._create_response(400, {'error': 'Some error occurred.'})
 
             order_items = []
             for shop_book_id, book_quantity in books_dict.items():
@@ -147,7 +156,10 @@ class OrderHandler(SampleHandler):
                 )
             session.add_all(order_items)
 
-            session.commit()
-            return self._create_response(201, {'success': True})
+            try:
+                session.commit()
+                return self._create_response(201, {'success': True})
+            except IntegrityError:
+                pass
 
         return self._create_response(500, {'error': 'Some error occurred.'})
