@@ -50,8 +50,8 @@ class UsersGetHandler(SampleHandler):
 class UsersOrdersHandler(SampleHandler):
     def __init__(self, books_as_id=True, shops_as_id=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.books_as_id = books_as_id
-        self.shops_as_id = shops_as_id
+        self._books_as_id = books_as_id
+        self._shops_as_id = shops_as_id
 
     async def _handler_function(self, request):
         user_id = request.match_info.get('user_id')
@@ -68,14 +68,14 @@ class UsersOrdersHandler(SampleHandler):
         book_ids = set()
         shop_ids = set()
 
-        if not (self.books_as_id and self.shops_as_id):
+        if not (self._books_as_id and self._shops_as_id):
             for order_item_object in order_item_objects:
                 book_ids.add(order_item_object.book_id)
                 shop_ids.add(order_item_object.shop_id)
 
         # Getting books and shops dicts from stored ids if needed
-        books = self._get_objects_from_ids(Book, book_ids) if not self.books_as_id and len(book_ids) else None
-        shops = self._get_objects_from_ids(Shop, shop_ids) if not self.shops_as_id and len(shop_ids) else None
+        books = self._get_objects_from_ids(Book, book_ids) if not self._books_as_id and len(book_ids) else None
+        shops = self._get_objects_from_ids(Shop, shop_ids) if not self._shops_as_id and len(shop_ids) else None
 
         # Filling final orders values from previously obtained data
         orders = []
@@ -89,11 +89,11 @@ class UsersOrdersHandler(SampleHandler):
                     temp_book = {}
 
                     # Filling each order depending on the parameters
-                    if self.books_as_id or books is None:
+                    if self._books_as_id or books is None:
                         temp_book['book_id'] = order_item.book_id
                     else:
                         temp_book['book'] = books[order_item.book_id].as_dict()
-                    if self.shops_as_id or shops is None:
+                    if self._shops_as_id or shops is None:
                         temp_book['shop_id'] = order_item.shop_id
                     else:
                         temp_book['shop'] = shops[order_item.shop_id].as_dict()
