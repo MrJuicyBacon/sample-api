@@ -10,6 +10,15 @@ def create_response(status=200, body=None, content_type='application/json'):
     return Response(status=status, body=json.dumps(body, separators=(',', ':')), content_type=content_type)
 
 
+def get_objects_from_ids(model_class, ids):
+    session = DbSession
+    model_objects = session.query(model_class).filter(model_class.id.in_(ids))
+    objects = {}
+    for model_object in model_objects:
+        objects[model_object.id] = model_object
+    return objects
+
+
 async def users_get_handler(request):
     user_id = request.match_info.get('user_id')
 
@@ -22,8 +31,8 @@ async def users_get_handler(request):
     raise HTTPNotFound
 
 
-async def users_orders_handler(request):
-    session = DbSession()
+async def users_orders_handler(request, books_as_id=True, shops_as_id=True):
+    session = DbSession
     user_id = request.match_info.get('user_id')
 
     order_objects = session.query(Order).with_entities(Order.id, Order.reg_date).filter(Order.user_id == user_id)
@@ -35,18 +44,13 @@ async def users_orders_handler(request):
     book_ids = set()
     shop_ids = set()
 
-    for order_item_object in order_item_objects:
-        book_ids.add(order_item_object.book_id)
-        shop_ids.add(order_item_object.shop_id)
+    if not (books_as_id and shops_as_id):
+        for order_item_object in order_item_objects:
+            book_ids.add(order_item_object.book_id)
+            shop_ids.add(order_item_object.shop_id)
 
-    book_objects = session.query(Book).filter(Book.id.in_(book_ids))
-    shop_objects = session.query(Shop).filter(Shop.id.in_(shop_ids))
-    books = {}
-    for book_object in book_objects:
-        books[book_object.id] = book_object
-    shops = {}
-    for shop_object in shop_objects:
-        shops[shop_object.id] = shop_object
+    books = get_objects_from_ids(Book, book_ids) if not books_as_id and len(book_ids) else None
+    shops = get_objects_from_ids(Shop, shop_ids) if not shops_as_id and len(shop_ids) else None
 
     orders = []
     for order in order_objects:
@@ -56,11 +60,19 @@ async def users_orders_handler(request):
         }
         for order_item in order_item_objects:
             if order_item.order_id == order.id:
-                temp_obj['items'].append({
-                    'book': books[order_item.book_id].as_dict(),
-                    'shop': shops[order_item.shop_id].as_dict(),
-                    'quantity': order_item.book_quantity,
-                })
+                temp_book = {}
+
+                if books_as_id or books is None:
+                    temp_book['book_id'] = order_item.book_id
+                else:
+                    temp_book['book'] = books[order_item.book_id].as_dict()
+                if shops_as_id or shops is None:
+                    temp_book['shop_id'] = order_item.shop_id
+                else:
+                    temp_book['shop'] = shops[order_item.shop_id].as_dict()
+                temp_book['quantity'] = order_item.book_quantity
+
+                temp_obj['items'].append(temp_book)
         orders.append(temp_obj)
 
     return create_response(200, {'orders': orders})
