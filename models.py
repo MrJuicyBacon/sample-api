@@ -1,7 +1,7 @@
 import sqlite3
-from sqlalchemy import create_engine, Column, Integer, String, Date, ForeignKey, event
+from sqlalchemy import create_engine, Column, Integer, String, Date, ForeignKey, event, Table
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.orm import scoped_session, sessionmaker, relationship
 
 __all__ = ['Session', 'User', 'Book', 'Shop', 'Order', 'OrderItem']
 
@@ -60,6 +60,14 @@ class Book(Base):
         return class_attrs_to_dict(self, fields)
 
 
+shop_book_association_table = Table(
+    'shop_book_association',
+    Base.metadata,
+    Column('shop_id', Integer, ForeignKey('shops.id')),
+    Column('book_id', Integer, ForeignKey('books.id'))
+)
+
+
 class Shop(Base):
     __tablename__ = 'shops'
 
@@ -67,6 +75,7 @@ class Shop(Base):
     name = Column(String(50), nullable=False)
     address = Column(String(150), nullable=False)
     post_code = Column(String(15))
+    books = relationship('Book', secondary=shop_book_association_table)
 
     def __repr__(self):
         return f'{self.name} ({self.address})'
