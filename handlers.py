@@ -18,10 +18,8 @@ class SampleHandler:
         return Response(status=status, body=json.dumps(body, separators=(',', ':')), content_type=content_type)
 
     # Method for getting object from model by id
-    @staticmethod
-    def _get_objects_from_ids(model_class, ids):
-        session = DbSession
-        model_objects = session.query(model_class).filter(model_class.id.in_(ids))
+    def _get_objects_from_ids(self, model_class, ids):
+        model_objects = self.session.query(model_class).filter(model_class.id.in_(ids))
         objects = {}
         for model_object in model_objects:
             objects[model_object.id] = model_object
@@ -40,7 +38,7 @@ class UsersGetHandler(SampleHandler):
         user_id = request.match_info.get('user_id')
 
         if user_id is not None:
-            user = DbSession().query(User).get(int(user_id))
+            user = self.session.query(User).get(int(user_id))
             if user is None:
                 raise HTTPNotFound
             user_dict = user.as_dict()
@@ -56,15 +54,15 @@ class UsersOrdersHandler(SampleHandler):
         self.shops_as_id = shops_as_id
 
     async def _handler_function(self, request):
-        session = DbSession
         user_id = request.match_info.get('user_id')
 
         # Querying orders for selected user and storing their ids
-        order_objects = session.query(Order).with_entities(Order.id, Order.reg_date).filter(Order.user_id == user_id)
+        order_objects = self.session.query(Order).with_entities(Order.id, Order.reg_date)\
+            .filter(Order.user_id == user_id)
         order_ids = [order_id for order_id, _ in order_objects]
 
         # Querying order items for selected orders and storing books and shop ids from them if needed
-        order_item_objects = session.query(OrderItem)\
+        order_item_objects = self.session.query(OrderItem)\
             .with_entities(OrderItem.order_id, OrderItem.book_id, OrderItem.shop_id, OrderItem.book_quantity)\
             .filter(OrderItem.order_id.in_(order_ids))
         book_ids = set()
@@ -130,14 +128,13 @@ class OrderHandler(SampleHandler):
             if books is None:
                 return self._create_response(400, {'error': '"books" field is required.'})
 
-            session = DbSession
             try:
                 books_json = json.loads(books)
 
                 # Checking if all shops from the request are present
                 # and creating book_ids dict with shop ids as keys and available books as values
                 shop_ids = set([int(book['shop_id']) for book in books_json])
-                shops = session.query(shop_book_association_table).filter(
+                shops = self.session.query(shop_book_association_table).filter(
                     shop_book_association_table.c.shop_id.in_(shop_ids)
                 )
                 book_ids = {}
@@ -168,9 +165,9 @@ class OrderHandler(SampleHandler):
 
             # Creating new order object
             order = Order(reg_date=date.today(), user_id=user_id)
-            session.add(order)
+            self.session.add(order)
             try:
-                session.flush()
+                self.session.flush()
             except IntegrityError:
                 return self._create_response(400, {'error': 'Some error occurred.'})
 
@@ -181,11 +178,11 @@ class OrderHandler(SampleHandler):
                 order_items.append(
                     OrderItem(order_id=order.id, book_id=book_id, shop_id=shop_id, book_quantity=book_quantity)
                 )
-            session.add_all(order_items)
+            self.session.add_all(order_items)
 
             # Committing all changes to the db
             try:
-                session.commit()
+                self.session.commit()
                 return self._create_response(201, {'success': True})
             except IntegrityError:
                 pass
